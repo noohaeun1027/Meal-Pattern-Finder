@@ -93,7 +93,7 @@ def load_data():
 
 
 # ==========================================
-# 연관 규칙 분석
+# 연관 규칙 계산
 # ==========================================
 def make_rules(transactions):
 
@@ -102,7 +102,7 @@ def make_rules(transactions):
     menu_count = {}
     pair_count = {}
 
-    # 메뉴별 출현 횟수와 메뉴 쌍 계산
+    # 메뉴별 출현 횟수 및 메뉴 쌍 계산
     for menus in transactions:
 
         for menu in menus:
@@ -111,7 +111,6 @@ def make_rules(transactions):
                 menu_count.get(menu, 0) + 1
             )
 
-        # 하루에 함께 나온 모든 메뉴 쌍
         for a, b in combinations(menus, 2):
 
             pair = (a, b)
@@ -125,7 +124,6 @@ def make_rules(transactions):
     # 메뉴 쌍마다 양방향 규칙 생성
     for (a, b), together in pair_count.items():
 
-        # 지지도
         support = together / total_days
 
         # A -> B
@@ -168,7 +166,7 @@ def make_rules(transactions):
 
     rules_df = pd.DataFrame(rules)
 
-    return rules_df, len(pair_count)
+    return rules_df, pair_count, menu_count
 
 
 # ==========================================
@@ -193,7 +191,7 @@ try:
 
     original_df, transactions = load_data()
 
-    rules_df, pair_count = make_rules(
+    rules_df, pair_count, menu_count = make_rules(
         transactions
     )
 
@@ -222,16 +220,16 @@ menu_types = len(all_menus)
 st.markdown(
     f"**급식 일수:** {total_days}일　 |　 "
     f"**메뉴 종류 수:** {menu_types}개　 |　 "
-    f"**함께 나온 메뉴 쌍 수:** {pair_count}쌍"
+    f"**함께 나온 메뉴 쌍 수:** {len(pair_count)}쌍"
 )
 
 st.divider()
 
 
 # ==========================================
-# 메뉴 선택
+# 규칙 좁혀 보기
 # ==========================================
-st.subheader("🔍 메뉴별 규칙 찾기")
+st.subheader("🔍 규칙 좁혀 보기")
 
 menu_options = [
     "전체 메뉴"
@@ -245,10 +243,24 @@ selected_menu = st.selectbox(
 
 
 # ==========================================
+# 최소 동시 일수 슬라이더
+# ==========================================
+min_together = st.slider(
+    "최소 동시 일수",
+    min_value=1,
+    max_value=10,
+    value=1,
+    step=1,
+    help="선택한 일수보다 적게 함께 나온 규칙은 제외합니다."
+)
+
+
+# ==========================================
 # 규칙 필터링
 # ==========================================
 filtered_rules = rules_df.copy()
 
+# 선택한 메뉴로 필터링
 if selected_menu != "전체 메뉴":
 
     filtered_rules = filtered_rules[
@@ -262,6 +274,11 @@ if selected_menu != "전체 메뉴":
             == selected_menu
         )
     ]
+
+# 최소 동시 일수로 필터링
+filtered_rules = filtered_rules[
+    filtered_rules["동시"] >= min_together
+]
 
 
 # ==========================================
@@ -299,6 +316,15 @@ filtered_rules = filtered_rules.sort_values(
 
 
 # ==========================================
+# 남은 규칙 수 표시
+# ==========================================
+st.markdown(
+    f"**현재 조건에 맞는 규칙: "
+    f"{len(filtered_rules)}개**"
+)
+
+
+# ==========================================
 # 규칙 표
 # ==========================================
 st.subheader("📋 함께 나온 메뉴 규칙")
@@ -306,7 +332,7 @@ st.subheader("📋 함께 나온 메뉴 규칙")
 if filtered_rules.empty:
 
     st.info(
-        "표시할 규칙이 없습니다."
+        "선택한 조건에 맞는 규칙이 없습니다."
     )
 
 else:
@@ -345,11 +371,6 @@ else:
         ],
         use_container_width=True,
         hide_index=True
-    )
-
-    st.caption(
-        f"현재 표시 중인 규칙: "
-        f"{len(filtered_rules)}개"
     )
 
 
@@ -393,7 +414,6 @@ else:
         + top10["결과"]
     )
 
-    # Plotly 가로 막대그래프
     fig = px.bar(
         top10.sort_values(
             "향상도",
@@ -443,6 +463,118 @@ else:
     st.plotly_chart(
         fig,
         use_container_width=True
+    )
+
+
+# ==========================================
+# 함께 나온 적 없는 짝
+# ==========================================
+st.divider()
+
+st.subheader("🚫 함께 나온 적 없는 짝 찾기")
+
+st.write(
+    "선택한 메뉴와 같은 날 한 번도 함께 나오지 않았지만, "
+    "혼자서는 10일 이상 나온 메뉴를 찾아봅니다."
+)
+
+# 위쪽 메뉴 선택과 다른 이름 사용
+no_pair_menu = st.selectbox(
+    "기준 메뉴 선택",
+    sorted(all_menus),
+    key="no_pair_menu"
+)
+
+
+# ==========================================
+# 선택한 메뉴와 함께 나온 적 없는 메뉴 찾기
+# ==========================================
+selected_menu_days = menu_count.get(
+    no_pair_menu,
+    0
+)
+
+# 선택 메뉴와 함께 나온 적이 있는 메뉴
+menus_seen_together = set()
+
+for (a, b), together in pair_count.items():
+
+    if a == no_pair_menu:
+
+        menus_seen_together.add(b)
+
+    elif b == no_pair_menu:
+
+        menus_seen_together.add(a)
+
+
+# 함께 나온 적이 없는 메뉴 중 10일 이상 나온 메뉴
+never_together = []
+
+for menu, days in menu_count.items():
+
+    if menu == no_pair_menu:
+        continue
+
+    if days < 10:
+        continue
+
+    if menu in menus_seen_together:
+        continue
+
+    never_together.append({
+        "메뉴": menu,
+        "나온 날": days
+    })
+
+
+# 나온 날이 많은 순으로 정렬
+never_together_df = pd.DataFrame(
+    never_together
+)
+
+if not never_together_df.empty:
+
+    never_together_df = (
+        never_together_df
+        .sort_values(
+            by="나온 날",
+            ascending=False
+        )
+        .reset_index(drop=True)
+    )
+
+
+# ==========================================
+# 결과 표시
+# ==========================================
+st.markdown(
+    f"**{no_pair_menu}가 나온 날: "
+    f"{selected_menu_days}일**"
+)
+
+if never_together_df.empty:
+
+    st.info(
+        "조건에 맞는 메뉴가 없습니다."
+    )
+
+else:
+
+    st.markdown(
+        f"**함께 나온 적 없는 메뉴: "
+        f"{len(never_together_df)}개**"
+    )
+
+    st.dataframe(
+        never_together_df[
+            [
+                "메뉴",
+                "나온 날"
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True
     )
 
 
