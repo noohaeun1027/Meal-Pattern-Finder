@@ -1,3 +1,4 @@
+
 import re
 from itertools import combinations
 
@@ -17,12 +18,13 @@ st.set_page_config(
 
 DATA_URL = (
     "https://raw.githubusercontent.com/"
-    "it-teacher-go/data-share-/main/songtan_meals_184.csv"
+    "it-teacher-go/data-share-/main/"
+    "songtan_meals_184.csv"
 )
 
 
 # ==========================================
-# 데이터 불러오기 및 전처리
+# 데이터 불러오기
 # ==========================================
 @st.cache_data
 def load_data():
@@ -59,7 +61,7 @@ def load_data():
             menu
         )
 
-        # 대괄호 안의 내용도 제거
+        # 대괄호와 대괄호 안의 내용 제거
         menu = re.sub(
             r"\[[^\]]*\]",
             "",
@@ -91,7 +93,7 @@ def load_data():
 
 
 # ==========================================
-# 연관 규칙 계산
+# 연관 규칙 분석
 # ==========================================
 def make_rules(transactions):
 
@@ -109,6 +111,7 @@ def make_rules(transactions):
                 menu_count.get(menu, 0) + 1
             )
 
+        # 하루에 함께 나온 모든 메뉴 쌍
         for a, b in combinations(menus, 2):
 
             pair = (a, b)
@@ -165,7 +168,7 @@ def make_rules(transactions):
 
     rules_df = pd.DataFrame(rules)
 
-    return rules_df, len(pair_count), menu_count
+    return rules_df, len(pair_count)
 
 
 # ==========================================
@@ -179,8 +182,7 @@ st.write(
 )
 
 st.caption(
-    "A data analysis app for discovering "
-    "school meal patterns."
+    "Discover hidden patterns in school meals."
 )
 
 
@@ -191,7 +193,7 @@ try:
 
     original_df, transactions = load_data()
 
-    rules_df, pair_count, menu_count = make_rules(
+    rules_df, pair_count = make_rules(
         transactions
     )
 
@@ -311,7 +313,7 @@ else:
 
     display_df = filtered_rules.copy()
 
-    # 백분율로 변환
+    # 지지도와 신뢰도를 백분율로 표시
     display_df["지지도"] = (
         display_df["지지도"] * 100
     ).map(
@@ -352,7 +354,7 @@ else:
 
 
 # ==========================================
-# 향상도 상위 10개 그래프
+# 향상도 TOP 10 그래프
 # ==========================================
 st.divider()
 
@@ -391,7 +393,7 @@ else:
         + top10["결과"]
     )
 
-    # 가로 막대그래프
+    # Plotly 가로 막대그래프
     fig = px.bar(
         top10.sort_values(
             "향상도",
@@ -451,17 +453,14 @@ st.divider()
 
 with st.expander("📖 지표 설명 보기"):
 
-    st.markdown("""
-    - **조건:** 규칙의 시작 메뉴
-    - **결과:** 조건 메뉴와 함께 나온 메뉴
-    - **동시:** 두 메뉴가 함께 나온 급식 일수
-    - **지지도:** 두 메뉴가 함께 나온 비율
-    - **신뢰도:** 조건 메뉴가 나왔을 때 결과 메뉴도 나온 비율
-    - **향상도:** 두 메뉴의 동시 출현이 독립적인 경우보다 얼마나 자주 나타나는지 나타내는 값
-
-    향상도가 1보다 크면 두 메뉴가 독립적인 경우보다 함께 나오는 경향이 강합니다.
-
-    향상도가 1이면 독립적인 관계이며, 1보다 작으면 함께 나오는 경향이 약합니다.
-
-    조건과 결과를 바꾸면 신뢰도는 달라질 수 있지만, 지지도와 향상도는 같습니다.
-
+    st.markdown(
+        "- **조건:** 규칙의 시작 메뉴\n"
+        "- **결과:** 조건 메뉴와 함께 나온 메뉴\n"
+        "- **동시:** 두 메뉴가 함께 나온 급식 일수\n"
+        "- **지지도:** 두 메뉴가 함께 나온 비율\n"
+        "- **신뢰도:** 조건 메뉴가 나왔을 때 결과 메뉴도 나온 비율\n"
+        "- **향상도:** 두 메뉴의 동시 출현이 독립적인 경우보다 얼마나 자주 나타나는지 나타내는 값\n\n"
+        "향상도가 1보다 크면 두 메뉴가 독립적인 경우보다 함께 나오는 경향이 강합니다.\n\n"
+        "향상도가 1이면 독립적인 관계이며, 1보다 작으면 함께 나오는 경향이 약합니다.\n\n"
+        "조건과 결과를 바꾸면 신뢰도는 달라질 수 있지만, 지지도와 향상도는 같습니다."
+    )
